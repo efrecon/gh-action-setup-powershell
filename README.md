@@ -1,4 +1,4 @@
-# powershell setup and runner
+# Install PowerShell
 
 This action will install `pwsh` (PowerShell) from the various Microsoft official
 installation locations. It is tuned for installing `pwsh` on Linux hosts, but is
