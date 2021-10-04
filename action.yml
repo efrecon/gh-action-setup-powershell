@@ -1,0 +1,39 @@
+name: setup-pwsh
+description: |
+  Installs PowerShell from the official Microsoft binaries
+author: Emmanuel Frecon <emmanuel.frecon@mitigram.com>
+branding:
+  icon: download
+  color: yellow
+
+inputs:
+  release:
+    description: |
+      Stable release version to use, in the form: major.minor.patch. Empty to
+      pick the latest stable release (the default)
+    required: true
+    default: ""
+  local:
+    description: |
+      Local (user) directory to use when performing non-root installations.
+    required: false
+    default: ${{ runner.tool_cache }}/${{ github.repository }}/opt/microsoft/powershell
+  options:
+    description: |
+      Additional options to pwsh.sh install script, -v to print out path of
+      found binaries
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    -
+      name: Install PowerShell
+      shell: bash
+      id: install
+      run: |
+        ${{ github.action_path }}/pwsh.sh \
+          -r "${{ inputs.release }}" \
+          -l "${{ inputs.local }}" \
+          ${{ inputs.options }}
