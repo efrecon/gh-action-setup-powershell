@@ -67,6 +67,11 @@ while getopts "r:l:vh-" opt; do
 done
 shift $((OPTIND-1))
 
+# TODO: We need to reason better around the wget installation code. When root,
+# we are able to install the relevant packages, so we should kickstat
+# installation of curl/wget if none can be found.
+
+
 _logline() {
   printf '[%s] [%s] %s\n' "$(basename "$0")" "${2:-NFO}" "$1" >&2
 }
@@ -108,12 +113,13 @@ _rpm() {
   rpm --import "${PWSH_ROOT%/}/keys/microsoft.asc"
   _verbose "Register YUM repository"
   _download "$1" > "${PWSH_YUMROOT%/}/microsoft.repo"
-#  dnf check-update || true
+  dnf check-update || true
   _verbose "Install dependencies and powershell"
   yum install -y compat-openssl10
   yum install -y powershell
 }
 
+# Guess latest stable release version of powershell made at GitHub.
 _version() {
   if [ -z "$PWSH_VERSION" ]; then
     PWSH_VERSION=$( _download "${PWSH_GHAPI%/}/releases" |
@@ -124,6 +130,7 @@ _version() {
   fi
 }
 
+# Install from YUM package pointed at URL passed as an argument
 _yum() {
   _verbose "Trying optional dependencies"
   yum install -y compat-openssl10 || true
@@ -131,6 +138,8 @@ _yum() {
   yum install -y "$1"
 }
 
+# Install from DEB package pointed at URL passed as an argument. This will
+# ensure that there is a wget to download stuff.
 _deb() {
   # shellcheck disable=SC3043 # local implemented almost everywhere
   local _rm || true
@@ -191,6 +200,8 @@ install_asroot() {
   esac
 }
 
+# Guess machine architecture in a way that is compatible with the PowerShell
+# release URLs at GitHub.
 _arch() {
   case "$(uname -m)" in
     x86_64) echo "x64";;
