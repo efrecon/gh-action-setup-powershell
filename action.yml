@@ -36,4 +36,6 @@ runs:
         ${{ github.action_path }}/pwsh.sh \
           -r "${{ inputs.release }}" \
           -l "${{ inputs.local }}" \
-          ${{ inputs.options }}
+          ${{ inputs.options }} \
+          -- \
+            --version

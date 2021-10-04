@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# This script will install buildah using the automated builds from the kubic
-# project
+# This script will try "really hard" (TM) to install powershell and will run it
+# with all command-line options and arguments given after the -- separator.
 
 set -eu
 
@@ -39,10 +39,15 @@ PWSH_PKGNAME=${PWSH_PKGNAME:-packages-microsoft-prod}
 PWSH_APTROOT=${PWSH_APTROOT:-"/etc/apt/sources.list.d"}
 PWSH_YUMROOT=${PWSH_YUMROOT:-"/etc/yum.repos.d"}
 
+# Binary/path to perform web operations, empty to discover (curl or wget, curl
+# preferred when running, wget preferred when installing (smaller install size
+# and less dependencies))
+PWSH_WEBCLI=${PWSH_WEBCLI:-}
+
 # This uses the comments behind the options to show the help. Not extremly
 # correct, but effective and simple.
 usage() {
-  echo "$0 installs powershell from the official Microsoft packages:" && \
+  echo "$0 installs powershell from the official Microsoft packages, and runs it:" && \
     head -n 100 "$0" | grep "[[:space:]].)\ #" |
     sed 's/#//' |
     sed -r 's/([a-z])\)/-\1/'
@@ -91,16 +96,53 @@ _error() {
   exit 1
 }
 
+# Discover web CLI client when none was specified
+_init() {
+  if [ -z "$PWSH_WEBCLI" ]; then
+    if command -v curl >/dev/null 2>&1; then
+      PWSH_WEBCLI=curl
+    elif command -v wget >/dev/null 2>&1; then
+      PWSH_WEBCLI=wget
+    elif [ "$(id -u)" = "0" ]; then
+      # Discover distribution
+      if [ -f "/etc/os-release" ]; then
+        # shellcheck disable=SC1091  # Path and variables are standardised!
+        . /etc/os-release
+      else
+        _error "Cannot find OS release information at /etc/os-release"
+      fi
+
+      case "$ID" in
+        ubuntu | debian)
+          _verbose "Installing wget for performing Web operations"
+          apt-get update -qq
+          apt-get -qq -y install wget
+          ;;
+        fedora | centos)
+          yum install -y wget
+          ;;
+        *)
+          _error "Don't know how to install wget for $NAME"
+          ;;
+      esac
+      PWSH_WEBCLI=wget
+    else
+      _error "Can neither find curl, nor wget for Web operations"
+    fi
+  fi
+}
+
+
 # Download the URL passed as a parameter, not output on the console, follow all
 # redirects. This will use curl or wget, depending on which one is installed.
 _download() {
   _verbose "Downloading $1"
-  if command -v curl >/dev/null 2>&1; then
+  if printf %s\\n "$PWSH_WEBCLI" | grep -q "curl"; then
     curl -sSL "$1"
-  elif command -v wget >/dev/null 2>&1; then
+  elif printf %s\\n "$PWSH_WEBCLI" | grep -q "wget"; then
     wget -q -O - "$1"
   else
-    _error "Can neither find curl, nor wget for downloading"
+    _error "Cannot understand type of Web CLI client at $PWSH_CLI"
   fi
 }
 
@@ -141,63 +183,12 @@ _yum() {
 # Install from DEB package pointed at URL passed as an argument. This will
 # ensure that there is a wget to download stuff.
 _deb() {
-  # shellcheck disable=SC3043 # local implemented almost everywhere
-  local _rm || true
-
-  # Make sure we have at least wget installed, remember the package in _rm so we
-  # can remove if necessary once done.
-  if ! command -v wget >&2 >/dev/null; then
-    _verbose "Temporarily installing binary dependencies"
-    apt-get update -qq
-    apt-get -qq -y install wget
-    _rm=wget
-  fi
-
   _verbose "Installing powershell using deb package from $1"
   _download "$1" > "/tmp/${PWSH_PKGNAME}.deb"
   dpkg -i "/tmp/${PWSH_PKGNAME}.deb"
   apt-get update -y -qq
   apt-get install -y -q powershell
   rm -f "/tmp/${PWSH_PKGNAME}.deb"
-
-  # Cleanup temporary packages, i.e. wget (but following code is generic!)
-  if [ -n "${_rm:-}" ]; then
-    _verbose "Cleaning away temporary dependencies"
-    apt-get remove -y $_rm
-    apt-get auto-remove -y
-  fi
-  apt-get clean
-}
-
-install_asroot() {
-  # Discover distribution
-  if [ -f "/etc/os-release" ]; then
-    # shellcheck disable=SC1091  # Path and variables are standardised!
-    . /etc/os-release
-  else
-    _error "Cannot find OS release information at /etc/os-release"
-  fi
-
-  case "$ID" in
-    ubuntu | debian)
-      _deb "${PWSH_ROOT%/}/config/${ID}/${VERSION_ID}/${PWSH_PKGNAME}.deb"
-      ;;
-    fedora)
-      _version
-      _yum "${PWSH_GHROOT%/}/v${PWSH_VERSION}/powershell-${PWSH_VERSION}-1.rhel.7.$(uname -i).rpm"
-      ;;
-    centos)
-      _version
-      if [ "$VERSION" = "8" ]; then
-        _yum "${PWSH_GHROOT%/}/v${PWSH_VERSION}/powershell-${PWSH_VERSION}-1.centos.${VERSION}.$(uname -i).rpm"
-      else
-        _yum "${PWSH_GHROOT%/}/v${PWSH_VERSION}/powershell-${PWSH_VERSION}-1.rhel.${VERSION}.$(uname -i).rpm"
-      fi
-      ;;
-    *)
-      _error "Don't know how to install for $NAME"
-      ;;
-  esac
 }
 
 # Guess machine architecture in a way that is compatible with the PowerShell
@@ -257,8 +248,48 @@ install_asuser() {
   fi
 }
 
+install_asroot() {
+  # Discover distribution
+  if [ -f "/etc/os-release" ]; then
+    # shellcheck disable=SC1091  # Path and variables are standardised!
+    . /etc/os-release
+  else
+    _error "Cannot find OS release information at /etc/os-release"
+  fi
 
+  case "$ID" in
+    ubuntu | debian)
+      _deb "${PWSH_ROOT%/}/config/${ID}/${VERSION_ID}/${PWSH_PKGNAME}.deb"
+      ;;
+    fedora)
+      _version
+      _yum "${PWSH_GHROOT%/}/v${PWSH_VERSION}/powershell-${PWSH_VERSION}-1.rhel.7.$(uname -i).rpm"
+      ;;
+    centos)
+      _version
+      if [ "$VERSION" = "8" ]; then
+        _yum "${PWSH_GHROOT%/}/v${PWSH_VERSION}/powershell-${PWSH_VERSION}-1.centos.${VERSION}.$(uname -i).rpm"
+      else
+        _yum "${PWSH_GHROOT%/}/v${PWSH_VERSION}/powershell-${PWSH_VERSION}-1.rhel.${VERSION}.$(uname -i).rpm"
+      fi
+      ;;
+    *)
+      _warn "Don't know how to install for $NAME, trying user installation"
+      install_asuser
+      ;;
+  esac
+}
+
+
+# Install powershell only if it cannot already be found
 if ! command -v pwsh >/dev/null 2>&1; then
+  # Initialise, this will arrange to find/install a proper CLI tool for web
+  # operations.
+  _init
+
+  # Install as root, e.g. system-wide or inside the user directory. Note that
+  # system-wide installation will default to installing in the 'root' user when
+  # the distribution is unknown to us.
   if [ "$(id -u)" = "0" ]; then
     install_asroot
   else
@@ -266,7 +297,7 @@ if ! command -v pwsh >/dev/null 2>&1; then
   fi
 fi
 
-# Run powershell, printing out the version. If installation failed without a
-# proper failure, this would arrange to fail. Knowing the installed version is
-# also a good piece of information.
-pwsh --version
+# Run powershell with the arguments passed to the script.
+if [ "$#" -gt "0" ]; then
+  pwsh "$@"
+fi
