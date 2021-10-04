@@ -26,6 +26,16 @@ PowerShell that was installed or already exists upon completion. The action
 might actively modify the `PATH` to arrange for making `pwsh` accessible to
 further steps in your job.
 
+```yaml
+steps:
+  -
+    name: Install PowerShell
+    uses: Mitigram/gh-action-setup-powershell@main
+  -
+    name: Print out PowerShell Version
+    run: pwsh --version
+```
+
 ## Known Limitations
 
 When this action needs to use the "local" installation method, it cannot modify
