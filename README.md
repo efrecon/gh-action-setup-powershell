@@ -8,7 +8,7 @@ as follows:
 + When the user in the runner where this action is executing is `root`, and if
   the Linux distribution is one recognised by the underlying
   [`pwsh.sh`](./pwsh.sh) script, a package-based, system-wide installation will be
-  attempted. If the distribution is now recognised, the second technique will be
+  attempted. If the distribution is not recognised, the second technique will be
   used.
 + When the user in the runner where this action is executing is not `root`, the
   underlying [`pwsh.sh`](./pwsh.sh) script will install PowerShell to a
