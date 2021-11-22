@@ -236,7 +236,7 @@ install_asuser() {
       if pwsh --version 2>&1 | grep -q ICU; then
         _warn "Disabling pwsh globalisation support"
         if [ -n "${GITHUB_ENV:-}" ]; then
-          echo "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1" >> "$GITHUB_PATH"
+          echo "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1" >> "$GITHUB_ENV"
         fi
         export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
       else
