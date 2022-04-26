@@ -17,6 +17,11 @@ as follows:
   future attempts to run this action on the same runner and project, will not
   require downloading PowerShell again.
 
+This project is a friendly [fork] in order to provide some level of support on a
+voluntary basis.
+
+  [fork]: https://github.com/Mitigram/gh-action-setup-powershell
+
 ## Usage
 
 This action is designed to have good defaults and you shouldn't have to provide
@@ -30,7 +35,7 @@ further steps in your job.
 steps:
   -
     name: Install PowerShell
-    uses: Mitigram/gh-action-setup-powershell@main
+    uses: efrecon/gh-action-setup-powershell@main
   -
     name: Print out PowerShell Version
     run: pwsh --version
